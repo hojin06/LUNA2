@@ -1,0 +1,25 @@
+# =============================================================================
+# 0단계 진단 설정 — experiments/00_resolution_diagnostic.py 용 (템플릿)
+# =============================================================================
+# 경로는 여기 적지 않는다. configs/paths.yaml 을 single source 로 쓴다.
+# (실제 파라미터는 진단 스크립트 구현 단계에서 확정 — 아래는 초안)
+
+experiment_name: "00_resolution_diagnostic"
+
+# 진단에 쓸 평가 데이터셋 키 (paths.yaml::datasets 의 키)
+dataset: "exdark"
+split: "test"          # ExDark split=3
+max_samples: 0         # 0 = 전체, 양수 = 디버그용 앞 N개
+
+# 해상도 sweep (YOLO 추론 입력 해상도)
+resolutions: [256, 384, 512, 0]   # 0 = 원본 해상도 유지
+
+# LUNA 향상 포함 여부
+compare_enhanced: true            # 원본 vs LUNA 향상 둘 다 측정
+luna_input_size: 256              # LUNA 향상기 입력 해상도 (왕복 진단용)
+
+# 검출 설정
+yolo_conf: 0.25
+
+# 출력 (paths.yaml::outputs.runs 기준 하위 폴더)
+out_subdir: "diagnostic"

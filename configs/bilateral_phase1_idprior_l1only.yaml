@@ -1,0 +1,66 @@
+# =============================================================================
+# Bilateral Phase 1 — identity-prior 수정 후 L1-only 짧은 재학습 (10 epoch)
+# =============================================================================
+# 목적: apply_affine 의 identity prior (scale 대각 +1) 수정 효과를 빠르게 검증.
+# L1 손실만 사용해 affine 이 입력 콘텐츠를 제대로 통과·향상시키는지 확인.
+#
+# 주의: apply_affine 의미가 바뀌어 기존 e29 체크포인트는 무효 → **처음부터 학습**
+#       (resume 아님). 새 exp_name 이라 train.py 자동 resume 도 발동하지 않음.
+#
+# 학습 crop(384) ≠ 추론 네이티브 해상도 (CoefficientNet 내부 low_res=256 다운샘플).
+# =============================================================================
+
+experiment_name: "bilateral_phase1_idprior_l1only"
+stage: "bilateral_phase1"
+seed: 42
+
+# --- 데이터 (sanity run 과 동일: combined, crop 384) ------------------------
+data:
+  train_datasets: ["lol_v1", "lol_v2_real", "loli_street"]
+  train_split: "train"
+  eval_dataset: "lol_v1"
+  eval_split: "eval"
+  crop_size: 384
+  full_resize: false
+  num_workers: 4
+
+# --- 모델 (변경 없음; apply_affine 의 identity prior 는 코드에 내장) ---------
+model:
+  cw: 32
+  grid_size: 16
+  depth: 8
+  low_res: 256
+  refine_channels: 24
+  refine_blocks: 2
+  guidance_channels: 16
+  norm: "in"
+
+# --- 최적화 (sanity run 과 동일) --------------------------------------------
+training:
+  batch_size: 16
+  num_epochs: 10          # 짧은 검증 run
+  optimizer: "adam"
+  lr: 2.0e-4
+  betas: [0.9, 0.999]
+  weight_decay: 0.0
+  scheduler: "cosine"     # T_max=10, eta_min = lr*0.005 = 1e-6
+  eta_min_ratio: 0.005
+  amp: true
+  grad_clip: 1.0
+
+# --- 손실: L1-only -----------------------------------------------------------
+# vgg/ssim 0.0 + use_perceptual false → VGG 미로딩(연산 절감), 순수 L1.
+loss:
+  lambda_l1: 1.0
+  lambda_vgg: 0.0
+  lambda_ssim: 0.0
+  use_perceptual: false
+  perceptual_layers: ["relu3_3"]
+
+# --- 로깅 / 출력 -------------------------------------------------------------
+logging:
+  save_every: 2         # last 체크포인트
+  eval_every: 2         # LOL eval15 PSNR/SSIM validation (매 2 epoch)
+  sample_every: 2       # 샘플 PNG
+  num_samples: 4
+  tensorboard: true     # 미설치 시 CSV 로깅만

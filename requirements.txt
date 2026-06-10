@@ -1,0 +1,21 @@
+# LUNA2 — 저조도 향상 기반 객체 검출 향상 연구
+# (PyTorch 는 CUDA 버전에 맞춰 https://pytorch.org 에서 설치 권장)
+
+# --- core ---
+torch>=2.0
+torchvision>=0.15
+numpy>=1.23
+Pillow>=9.0
+PyYAML>=6.0          # configs/paths.yaml 로딩 (src/utils/paths.py)
+
+# --- ExDark 검출 평가 (eval_detection.py) ---
+ultralytics>=8.0     # YOLOv8n 추론
+
+# --- optional ---
+tqdm>=4.64           # 진행률 표시 (없어도 동작)
+lpips>=0.1.4         # LPIPS 지표 (eval_restoration --lpips 시에만 필요)
+
+# --- deploy (스텁, 구현 단계에서 사용) ---
+# onnx>=1.14
+# onnxruntime-gpu>=1.16
+# onnxsim>=0.4

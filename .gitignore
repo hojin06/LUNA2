@@ -1,0 +1,17 @@
+# --- LUNA2 산출물 / 무거운 바이너리 ---
+runs/
+*.pth
+*.onnx
+*.pt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# --- 결과 부산물 ---
+*.csv
+*.log

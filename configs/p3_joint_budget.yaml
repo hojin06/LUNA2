@@ -1,0 +1,42 @@
+# =============================================================================
+# P3 공유 학습 budget — 조건 C/D/E 가 동일하게 사용 (공정 비교 고정)
+# =============================================================================
+# 조건 C: YOLOv8n(COCO init) 을 ExDark train(raw 저조도, enhancer 없음)으로 fine-tune.
+# D/E 는 enhancer 조합이 달라도 **이 budget(epochs·imgsz·lr·aug·batch)을 그대로 공유**한다.
+#
+# 평가 imgsz=640 (eval_detection_native 와 동일: YOLO predict 기본 640).
+# train/test 누수 엄수: train(5154)+val(737) 만 학습, test(1472) 는 평가 전용.
+# =============================================================================
+
+detector:
+  weights_init: "yolov8n.pt"   # paths.yaml::yolov8n (COCO pretrained)
+  nc: 80                        # COCO 80 head 유지 (ExDark GT 를 COCO id 로 라벨)
+
+data:
+  split_csv: "configs/exdark_split_provisional.csv"
+  train_split: "train"          # 5154
+  val_split: "val"              # 737 (학습 중 검증)
+  test_split: "test"            # 1472 (보고)
+
+train:
+  epochs: 40
+  imgsz: 640                    # eval 과 동일
+  batch: 16
+  optimizer: "SGD"
+  lr0: 0.001                    # fine-tune (default 0.01 보다 작게)
+  lrf: 0.01                     # 최종 lr = lr0*lrf (cosine)
+  cos_lr: true
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 2.0
+  seed: 42
+  # augmentation (budget 의 일부 — D/E 공유)
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.5
+  fliplr: 0.5
+  mosaic: 1.0
+  close_mosaic: 10              # 마지막 10 epoch mosaic off

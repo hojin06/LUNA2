@@ -1,0 +1,66 @@
+# =============================================================================
+# Phase 2 — detection-aware 학습 설정 (enhancer + frozen YOLOv8n)
+# =============================================================================
+# L_total = λ_rec·L_anchor + λ_det·L_yolo
+#   · L_anchor = L1(enhanced, base(low).detach())   # base(=guidefix) 출력으로 distill
+#                → 향상 drift 방지 (ExDark clean GT 부재 보완)
+#   · L_yolo   = v8DetectionLoss(YOLOv8n(enhanced), GT bbox)  # 검출 친화 유도
+# detector 는 frozen (requires_grad=False); grad 는 enhancer 까지만 흐름.
+#
+# base 체크포인트: paths.yaml::phase2.base_checkpoint (= guidefix). 처음부터 X,
+# guidefix 에서 이어 학습(init).
+#
+# 학습 배치는 고정 crop(crop_size) 로 구성(가변 native 는 batch stack 불가).
+# 평가는 eval_detection_native.py 로 native 해상도에서 수행.
+# =============================================================================
+
+experiment_name: "p2_detection_aware"
+stage: "phase2_detection_aware"
+seed: 42
+
+# --- 데이터 (ExDark train split, GT bbox) -----------------------------------
+data:
+  split_csv: "configs/exdark_split_provisional.csv"  # LUNA2 루트 기준 (잠정 split)
+  train_split: "train"        # 5154장
+  eval_split: "test"          # 1472장 (평가는 eval_detection_native.py)
+  crop_size: 384              # 학습 배치 고정 해상도
+  num_workers: 4
+  filter_empty: true          # GT 0개 이미지 제외 (검출 학습 신호 없음)
+
+# --- 모델 (base=guidefix 에서 로드; 아래는 구조 참고용, 체크포인트 우선) -----
+model:
+  cw: 32
+  grid_size: 16
+  depth: 8
+  low_res: 256
+  refine_channels: 24
+  refine_blocks: 2
+  guidance_channels: 16
+  norm: "in"
+
+# --- 최적화 (P2: 작은 lr, base 에서 미세조정) -------------------------------
+training:
+  batch_size: 8
+  num_epochs: 10
+  optimizer: "adam"
+  lr: 1.0e-4                  # P1(2e-4)보다 작게 (fine-tune)
+  betas: [0.9, 0.999]
+  weight_decay: 0.0
+  scheduler: "cosine"
+  eta_min_ratio: 0.01
+  amp: true                   # enhancer forward 만 autocast; 손실은 fp32
+  grad_clip: 1.0
+
+# --- 손실 가중치 -------------------------------------------------------------
+loss:
+  lambda_rec: 1.0             # anchor distill (L1 to base output)
+  lambda_det: 0.005           # detection-aware (sweep: 0.001/0.003/0.005/0.01)
+  lambda_tv: 0.0              # grid spatial TV (artifact 완화; 0.01~0.1 권장)
+
+# --- 로깅 / 출력 -------------------------------------------------------------
+logging:
+  save_every: 2
+  eval_every: 2
+  sample_every: 2
+  num_samples: 4
+  tensorboard: true

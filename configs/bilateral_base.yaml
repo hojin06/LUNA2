@@ -1,0 +1,72 @@
+# =============================================================================
+# Bilateral Phase 1 (지도학습) 설정 — experiments/train.py 용
+# =============================================================================
+# 경로는 configs/paths.yaml 에서 주입 (데이터셋 루트·가중치). 여기는 모델/데이터
+# /최적화/손실/로깅 하이퍼파라미터만 정의한다.
+#
+# 학습 해상도 vs 추론 해상도
+# --------------------------
+# 학습은 PairedAugment 의 random crop (crop_size, 기본 256) 으로 진행하지만,
+# BilateralLowLightNet 은 추론 시 **네이티브 해상도**(예: 640×480) 를 그대로 받는다.
+# CoefficientNet 은 어느 해상도에서든 내부적으로 low_res(256) 로 다운샘플하므로
+# 학습/추론 해상도가 달라도 동일하게 동작한다 (bilateral grid 의 해상도 불변성).
+# =============================================================================
+
+experiment_name: "bilateral_phase1_sanity"
+stage: "bilateral_phase1"
+seed: 42
+
+# --- 데이터 -----------------------------------------------------------------
+data:
+  # 학습: LOL v1 + LOL-v2 Real + LoLI-Street paired 를 CombinedDataset 으로 합침.
+  # (paths.yaml::datasets 의 키. 누락 데이터셋은 train.py 가 경고 후 건너뜀.)
+  train_datasets: ["lol_v1", "lol_v2_real", "loli_street"]
+  train_split: "train"
+  eval_dataset: "lol_v1"     # best PSNR/SSIM 기준 (LOL eval15)
+  eval_split: "eval"
+  crop_size: 384             # 학습 random crop 크기 (sanity run: 384)
+  full_resize: false         # true 면 crop 대신 전체 리사이즈
+  num_workers: 4
+
+# --- 모델 (src/models/bilateral_grid.py::BilateralLowLightNet) --------------
+model:
+  cw: 32                # CoefficientNet base channel width (splat cw→2cw→4cw→4cw)
+  grid_size: 16         # bilateral grid 공간 해상도 gh=gw
+  depth: 8              # grid luma(밝기) 축 bin 수
+  low_res: 256          # CoefficientNet 입력 다운샘플 해상도 (추론 시 네이티브에서 내부 적용)
+  refine_channels: 24   # refinement DSConv 채널
+  refine_blocks: 2      # refinement DSConv 블록 수
+  guidance_channels: 16 # GuidanceNet hidden 채널
+  norm: "in"            # 'bn' | 'in' | 'none'
+  # affine = 3×4 = 12 (고정; AFFINE_PARAMS)
+
+# --- 최적화 (Stage 1 지도학습만; 적대적 없음) -------------------------------
+training:
+  batch_size: 16
+  num_epochs: 30          # 1차 sanity run
+  optimizer: "adam"
+  lr: 2.0e-4
+  betas: [0.9, 0.999]
+  weight_decay: 0.0
+  scheduler: "cosine"     # "cosine" | "none"
+  eta_min_ratio: 0.005    # cosine 최소 lr = lr * 0.005 = 2e-4 * 0.005 = 1e-6
+  amp: true               # mixed precision (FP16)
+  grad_clip: 1.0          # gradient L2-norm clip (0 이면 비활성)
+
+# --- 손실 (src/losses/restoration.py::CombinedRestorationLoss) --------------
+# 원본 LUNA SupervisedLoss 미러링: λ_L1=1.0, λ_VGG=0.5, λ_SSIM=1.0,
+# perceptual = VGG16 relu3_3 (features[:16]).
+loss:
+  lambda_l1: 1.0
+  lambda_vgg: 0.5
+  lambda_ssim: 1.0
+  use_perceptual: true
+  perceptual_layers: ["relu3_3"]
+
+# --- 로깅 / 출력 (runs/{experiment_name}/) ----------------------------------
+logging:
+  save_every: 5         # epoch 마다 last 체크포인트 저장 간격
+  eval_every: 5         # LOL eval15 PSNR/SSIM validation 간격 (매 5 epoch)
+  sample_every: 5       # epoch 마다 샘플 PNG 저장 간격
+  num_samples: 4        # 샘플 이미지 장수
+  tensorboard: true     # tensorboard 설치 시 사용 (미설치면 CSV 로깅만)
